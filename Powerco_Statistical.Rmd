@@ -1,0 +1,1735 @@
+---
+title: "Progetto_Statistical"
+author: "Manuel Bottino, Patrick Poetto"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    includes:
+      in_header: "preamble.tex"
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# set the working directory to the location of the current file
+library(rstudioapi)
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+knitr::opts_knit$set(root.dir = dirname(rstudioapi::getSourceEditorContext()$path))
+```
+
+# Stakeholder request
+
+Our project originates from a real-world challenge presented by Powerco,
+ the leading dual-energy distributor in New Zealand. 
+ Known for its extensive network handling both electricity and gas distribution, 
+ Powerco stands out as a key player in the country's energy sector. 
+ With an impressive infrastructure covering 28,935km of electricity lines and 6,227km of gas pipes, 
+ the company serves a significant customer base exceeding 900,000 connections. Its electricity network covers: \newline
+
+
+- Coromandel to South Waikato
+- Bay of Plenty: Tauranga and Mount Maunganui
+- Taranaki
+- Whanganui and Rangitīkei
+- Manawatū
+- Wairarapa
+
+
+Its gas network covers: \newline
+
+
+- Taranaki
+- Hawke's Bay
+- Manawatū
+- Porirua and Hutt Valley
+- Wellington" 
+
+\MYhref{https://en.wikipedia.org/wiki/Powerco}{From Wikipedia} \newline
+
+Powerco's inquiry revolves around understanding the factors influencing customer churn, 
+with a particular focus on examining the impact of pricing dynamics on customer behavior.
+ The objective is to ascertain whether pricing serves as the primary driver behind changes in customer loyalty. 
+ This inquiry aligns closely with Powerco's strategic aim of continually refining its business model and enhancing
+customer satisfaction in a competitive energy market.
+\newline
+
+To provide further context, Powerco's role extends beyond mere energy transmission;
+it involves managing a robust distribution network ensuring seamless delivery to consumers across varied regions.
+ This comprehensive operational model underscores the company's commitment to delivering reliable energy services while adapting to evolving market trends and consumer preferences.
+
+Our project seeks to conduct a thorough analysis to unravel the intricate relationship between pricing strategies and customer churn within Powerco's 
+operational framework. 
+By leveraging empirical data and employing sophisticated analytical techniques supplied by the firm itself, 
+we aim to deliver actionable insights that empower Powerco to optimize its pricing strategies, 
+reduce customer turnover, and solidify its position as a leading player in New Zealand's energy landscape.
+ 
+
+Now that we've familiarized ourselves with the company, let's delve into our analysis and consider some overarching factors:
+
+- As an utility company, Powerco operates within an oligopoly market structure, where multiple firms dominate the industry. 
+In such a setup, the dynamics of consumer churn are particularly influenced by pricing strategies. 
+While other factors certainly play a role, such as service quality and brand reputation, 
+pricing holds significant sway over consumer decisions to switch providers. 
+- Being a dual-energy distributor, Powerco's pricing strategies for electricity and gas are likely intertwined. 
+This correlation between the prices of both energy sources is an important aspect to consider in our analysis.
+- Powerco offers a variety of contract options to its customers, ranging from fixed-price contracts to variable-price ones. 
+This diversity suggests that pricing isn't the sole determinant of customer churn. 
+Different contract types may appeal to different customer segments, impacting churn rates accordingly.
+For instance, customers opting for fixed-price contracts may prioritize stability and predictability in their energy bills,
+ while those on variable-price contracts may be more sensitive to market fluctuations. 
+
+- Additionally, we need to consider the impact of switching costs on customer churn. 
+Switching costs refer to the expenses or inconveniences incurred by customers when switching from one provider to another. 
+In an oligopolistic market like the one Powerco operates in, high switching costs can act as a barrier to customer churn. 
+Customers may be less likely to switch providers if they have invested time or money in their current provider, 
+or if the process of switching is complex or cumbersome. \newline 
+
+Some of these aspect are not included in the data, but it is important to keep in mind what we are missing.
+
+
+
+# Data description
+
+The data we will use is a repository from \MYhref{https://github.com/moustafa100/Data-Science-Advanced-Analytics}{GitHub}, and it is composed of three csv file. 
+
+```{r load_libraries, echo=FALSE, message=FALSE, warning=FALSE}
+#loading libraries
+library(tidyr) 
+library(ggplot2) 
+library(dplyr) 
+library(naniar)
+```
+
+```{r load_and_churn_data}
+
+customer_data <- read.csv("data/ml_case_training_data.csv", na.strings=c('', 'NA'))
+price_data <- read.csv("data/ml_case_training_hist_data.csv", na.strings=c('', 'NA'))
+churn_data <- read.csv("data/ml_case_training_output.csv", na.strings=c('', 'NA'))
+ 
+customer_churn <- merge(customer_data, churn_data, by="id")
+# let's do the same for the price data
+customer_churn <- merge(customer_churn, price_data, by="id")
+
+summary(customer_churn)
+```
+
+Let's explain the data we have loaded and the variables we have at our disposal:
+
+For the cunstomer_churn dataset we have the following variables:
+
+- id = client company identifier
+- activity_new = category of the company’s activity
+- channel_sales = code of the sales channel
+- cons_12m = electricity consumption of the past 12 months
+- cons_gas_12m = gas consumption of the past 12 months
+- cons_last_month = electricity consumption of the last month
+- date_activ = date of activation of the contract
+- date_end = registered date of the end of the contract
+- date_modif_prod = date of the last modification of the product
+- date_renewal = date of the next contract renewal
+- forecast_cons_12m = forecasted electricity consumption for next 12 months
+- forecast_cons_year = forecasted electricity consumption for the next calendar year
+- forecast_discount_energy = forecasted value of current discount
+- forecast_meter_rent_12m = forecasted bill of meter rental for the next 2 months
+- forecast_price_energy_off_peak = forecasted energy price for 1st period (off peak)
+- forecast_price_energy_peak = forecasted energy price for 2nd period (peak)
+- forecast_price_pow_off_peak = forecasted power price for 1st period (off peak)
+- has_gas = indicated if client is also a gas client
+- imp_cons = current paid consumption
+- margin_gross_pow_ele = gross margin on power subscription
+- margin_net_pow_ele = net margin on power subscription
+- nb_prod_act = number of active products and services
+- net_margin = total net margin
+- num_years_antig = antiquity of the client (in number of years)
+- origin_up = code of the electricity campaign the customer first subscribed to
+- pow_max = subscribed power
+- churn = has the client churned over the next 3 months
+
+Instead, for the price_data dataset we have the following variables:
+
+- id = client company identifier
+- price_date = reference date
+- price_off_peak_var = price of energy for the 1st period (off peak)
+- price_peak_var = price of energy for the 2nd period (peak)
+- price_mid_peak_var = price of energy for the 3rd period (mid peak)
+- price_off_peak_fix = price of power for the 1st period (off peak)
+- price_peak_fix = price of power for the 2nd period (peak)
+- price_mid_peak_fix = price of power for the 3rd period (mid peak)
+
+
+
+
+# Data preprocessing
+It is important to specify that the majority of this section has been copy pasted from another project on \MYhref{https://www.kaggle.com/code/scratchpad/notebook4627a1334b/edit}{kaggle}, 
+since the preprocessing of the data is a standard procedure and it is quite complex and long in this instance. 
+Furthermore it is not the main focus of our project. 
+
+### Let's have a look at the target variable
+
+```{r data_duplicates_dates, echo=FALSE}
+
+#exploring churn rate
+churn_rate <- customer_churn %>%
+  group_by(churn) %>%
+  summarize(Count=n()) %>%
+  mutate(TotalCount=sum(Count)) %>%
+  mutate(Percentage=round(Count/TotalCount*100))
+churn_rate
+#non churn -> 0 14501      16096         90
+#churn     -> 1  1595      16096         10
+
+
+options(repr.plot.width = 20, repr.plot.height = 10)
+ggplot(churn_rate, aes(x=churn, y=Percentage, fill=churn)) +
+  geom_bar(stat="identity") +
+  labs(title="Churn Rate") + 
+  geom_text(aes(label=Percentage), vjust=1.6, color="white", size=10) +
+  theme(legend.title = element_text(size = 20), legend.text = element_text(size = 20), 
+        plot.title = element_text(size = 30),axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25) )
+
+
+```
+
+We can see that the churn rate is 10%, an important information to keep in mind for the analysis. When evaulating the performance of the model,
+the dumbest model that predicts that no one will churn will have an accuracy of 90%.
+
+### Distribution of some variables
+
+Let's have a look at the distribution of some variables, in particular the consumption of electricity and gas of the past 12 months.
+
+```{r covariates_distribution, echo=FALSE, warning=FALSE, message=FALSE}
+
+ggplot(customer_churn, aes(x=cons_12m)) + geom_histogram(fill="orange") + 
+labs(title="Electricity consumption of the past 12 months") +
+theme(plot.title = element_text(size = 30),axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25))
+
+ggplot(customer_churn, aes(x=cons_gas_12m)) + geom_histogram(fill="orange") + 
+labs(title="Gas consumption of the past 12 months") +
+theme(plot.title = element_text(size = 30),axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25))
+```
+
+It is easy to notice that the distribution is not normal and there a lot of potential outliers (very long tail).
+
+
+### Summary of prices
+
+Let's look for duplicates and corrupted or na values in the other dataset (price_data)
+
+```{r price_data_summary}
+anyDuplicated(price_data)
+summary(price_data)
+```
+On one hand, it is reassuring that there are no duplicates in the price_data dataset. On the other hand,it is easy to notice that some prices are negative, 
+which is not possible. We will have to fix this issue. The only possible explanation is possible discounts, but it does not seem likely since it is not mentioned in the data description.
+
+### Data type formatting
+
+We will now format the data in a better date format, since it is not in a standard format. We will use the as.POSIXct function to do so.
+```{r date_formatting, message=FALSE, warning=FALSE}
+
+customer_churn$price_date=as.POSIXct(price_data$price_date, 
+                                 tryFormats = c("%Y-%m-%d %H:%M:%OS",
+                                                "%Y/%m/%d %H:%M:%OS",
+                                                "%Y-%m-%d %H:%M",
+                                                "%Y/%m/%d %H:%M",
+                                                "%Y-%m-%d",
+                                                "%Y/%m/%d"),tz=Sys.timezone())
+
+customer_churn$date_activ=as.POSIXct(customer_churn$date_activ, 
+                                     tryFormats = c("%Y-%m-%d %H:%M:%OS",
+                                                    "%Y/%m/%d %H:%M:%OS",
+                                                    "%Y-%m-%d %H:%M",
+                                                    "%Y/%m/%d %H:%M",
+                                                    "%Y-%m-%d",
+                                                    "%Y/%m/%d"),tz=Sys.timezone())
+
+customer_churn$date_end=as.POSIXct(customer_churn$date_end, 
+                                   tryFormats = c("%Y-%m-%d %H:%M:%OS",
+                                                  "%Y/%m/%d %H:%M:%OS",
+                                                  "%Y-%m-%d %H:%M",
+                                                  "%Y/%m/%d %H:%M",
+                                                  "%Y-%m-%d",
+                                                  "%Y/%m/%d"),tz=Sys.timezone())
+
+customer_churn$date_modif_prod=as.POSIXct(customer_churn$date_modif_prod, 
+                                          tryFormats = c("%Y-%m-%d %H:%M:%OS",
+                                                         "%Y/%m/%d %H:%M:%OS",
+                                                         "%Y-%m-%d %H:%M",
+                                                         "%Y/%m/%d %H:%M",
+                                                         "%Y-%m-%d",
+                                                         "%Y/%m/%d"),tz=Sys.timezone())
+
+customer_churn$date_renewal=as.POSIXct(customer_churn$date_renewal, 
+                                       tryFormats = c("%Y-%m-%d %H:%M:%OS",
+                                                      "%Y/%m/%d %H:%M:%OS",
+                                                      "%Y-%m-%d %H:%M",
+                                                      "%Y/%m/%d %H:%M",
+                                                      "%Y-%m-%d",
+                                                      "%Y/%m/%d"),tz=Sys.timezone())
+
+
+```
+One important information that is now easily accessible is the time frame of the data. It goes from 25 July 2000 to 13 June 2017.
+
+### Missing data
+
+```{r vis_miss_data}
+vis_miss(customer_churn, show_perc=TRUE, show_perc_col = TRUE, sort_miss=TRUE, warn_large_data = FALSE)
+```
+17.6% of the data is missing. Let's delete all of the columns that have more than 70% of missing data, which are:
+
+- campaign_disc_ele - code of the electricity campaign the customer last subscribed to (100%)
+- date_first_activ - date of the first contract of the client (78,21%)
+- forecast_base_bill_ele - forecasted electricity bill baseline for next month (78,21%)
+- forecast_base_bill_year forecasted electricity bill baseline for calendar year (78,21%)
+- forecast_bill_12m forecasted electricity bill baseline for 12 months (78,21%)
+- forecast_cons forecasted electricity consumption for next month (78,21%)
+
+We also remove activity_new since it has too many categories (more than 13k). This would not only increase computing time but also make impossible for some functions to be run
+
+```{r delete_70_missing}
+#dropping columns
+customer_churn <- select(customer_churn, -c(campaign_disc_ele,
+                                            date_first_activ, forecast_base_bill_ele,
+                                            forecast_base_bill_year, forecast_bill_12m,
+                                            forecast_cons, activity_new))
+```
+
+#### Missing categorical data
+
+Now we will deal with the missing data in the channel_sales variable. 
+We will do the same as before, but we will assign the missing data to the most frequent category.
+The reasoning is that the most frequent category is the most likely to occur, so it is a good guess for the missing data.
+Defining a new category for the missing data would not be fair since there are only 8 unique values and it would drive the attention away from the most frequent category.
+It is important to keep in mind that this is a standard procedure and it is not the best way to deal with missing data, 
+but it is the most practical in this instance, since deleting the rows would be a waste of data.
+
+
+```{r channel_sales_missing}
+
+#let's look how many unique channels there are
+unique(customer_churn$channel_sales)
+#let's look how many values of each channel sales we have
+num_channel <- customer_churn %>%
+  group_by(channel_sales) %>%
+  summarize(Count=n())
+num_channel
+nrow(num_channel)
+# [1] 8
+
+
+#assigning NA values to the most frequent channel
+customer_churn$channel_sales <- replace_na(customer_churn$channel_sales, 
+                                           "foosdfpfkusacimwkcsosbicdxkicaua")
+
+```
+As stated before, we assigned the missing data to the most frequent category: foosdfpfkusacimwkcsosbicdxkicaua.
+
+The same procedure will be done for the origin_up variable.
+
+```{r origin_up_missing}
+
+#number of values in each code
+num_origin <- customer_churn %>%
+  group_by(origin_up) %>%
+  summarize(Count=n())
+num_origin
+nrow(num_origin)
+# [1] 6
+
+#assigning NA values to the most frequent code
+customer_churn$origin_up <- replace_na(customer_churn$origin_up, 
+                                       "lxidpiddsbxsbosboudacockeimpuepw")
+
+```
+We have 6 different classes, and the Nas are assigned to the most frequent one: lxidpiddsbxsbosboudacockeimpuepw.
+
+#### Missing numerical data
+
+We will now deal with the missing numeric data, there are many ways to do so, we will be using the imputing technique.
+ In particualar the median of each numerical column (with NAs) is used to fill missing values, since it is a robust measure of central tendency. 
+
+
+```{r numerical_missing_data} 
+#filling numerical missing data with median
+customer_churn$forecast_discount_energy[is.na(customer_churn$forecast_discount_energy)]<-median(
+  customer_churn$forecast_discount_energy,na.rm=TRUE)
+customer_churn$forecast_price_energy_p1[is.na(customer_churn$forecast_price_energy_p1)]<-median(
+  customer_churn$forecast_price_energy_p1,na.rm=TRUE)
+customer_churn$forecast_price_energy_p2[is.na(customer_churn$forecast_price_energy_p2)]<-median(
+  customer_churn$forecast_price_energy_p2,na.rm=TRUE)
+customer_churn$forecast_price_pow_p1[is.na(customer_churn$forecast_price_pow_p1)]<-median(
+  customer_churn$forecast_price_pow_p1,na.rm=TRUE)
+customer_churn$margin_gross_pow_ele[is.na(customer_churn$margin_gross_pow_ele)]<-median(
+  customer_churn$margin_gross_pow_ele,na.rm=TRUE)
+customer_churn$margin_net_pow_ele[is.na(customer_churn$margin_net_pow_ele)]<-median(
+  customer_churn$margin_net_pow_ele,na.rm=TRUE)
+customer_churn$net_margin[is.na(customer_churn$net_margin)]<-median(
+  customer_churn$net_margin,na.rm=TRUE)
+customer_churn$pow_max[is.na(customer_churn$pow_max)]<-median(
+  customer_churn$pow_max,na.rm=TRUE)
+customer_churn$price_p1_var[is.na(customer_churn$price_p1_var)]<-median(
+  customer_churn$price_p1_var,na.rm=TRUE)
+customer_churn$price_p2_var[is.na(customer_churn$price_p2_var)]<-median(
+  customer_churn$price_p2_var,na.rm=TRUE)
+customer_churn$price_p3_var[is.na(customer_churn$price_p3_var)]<-median(
+  customer_churn$price_p3_var,na.rm=TRUE)
+customer_churn$price_p1_fix[is.na(customer_churn$price_p1_fix)]<-median(
+  customer_churn$price_p1_fix,na.rm=TRUE)
+customer_churn$price_p2_fix[is.na(customer_churn$price_p2_fix)]<-median(
+  customer_churn$price_p2_fix,na.rm=TRUE)
+
+customer_churn$price_p3_fix[is.na(customer_churn$price_p3_fix)]<-median(
+  customer_churn$price_p3_fix,na.rm=TRUE)
+
+```
+
+#### Missing dates
+
+
+The same technique used for numerical data is used to fill missing dates. The reasoning remains the same.
+
+
+```{r dates_missing_data}
+customer_churn$date_end[is.na(customer_churn$date_end)]<-median(
+  customer_churn$date_end,na.rm=TRUE)
+customer_churn$date_modif_prod[is.na(customer_churn$date_modif_prod)]<-median(
+  customer_churn$date_modif_prod,na.rm=TRUE)
+customer_churn$date_renewal[is.na(customer_churn$date_renewal)]<-median(
+  customer_churn$date_renewal,na.rm=TRUE)
+```
+
+Everything is read for the customer_churn dataset, let's have a look at the vis_miss function again. Then we will deal with the price_data dataset in a similar manner.
+
+```{r vis_updated_miss_data}
+vis_miss(customer_churn, show_perc=TRUE, show_perc_col = TRUE, sort_miss=TRUE, warn_large_data = FALSE)
+```
+
+
+### Negative values
+As stated before they could be due to discounts, but there is no confirm of this online and it seems unlikely since there is just a few of them. 
+We will replace them with the median as it has been done with missing values.
+```{r negative_values}
+#customer_churn
+customer_churn$cons_12m[customer_churn$cons_12m <0] <- median(
+  customer_churn$cons_12m)
+customer_churn$cons_gas_12m[customer_churn$cons_gas_12m <0] <- median(
+  customer_churn$cons_gas_12m)
+customer_churn$cons_last_month[customer_churn$cons_last_month <0] <- median(
+  customer_churn$cons_last_month)
+customer_churn$forecast_cons_12m[customer_churn$forecast_cons_12m <0] <- median(
+  customer_churn$forecast_cons_12m)
+customer_churn$forecast_cons_year[customer_churn$forecast_cons_year <0] <- median(
+  customer_churn$forecast_cons_year)
+customer_churn$forecast_meter_rent_12m[customer_churn$forecast_meter_rent_12m <0] <- median(
+  customer_churn$forecast_meter_rent_12m)
+customer_churn$forecast_price_pow_p1[customer_churn$forecast_price_pow_p1 <0] <- median(
+  customer_churn$forecast_price_pow_p1)
+customer_churn$imp_cons[customer_churn$imp_cons <0] <- median(
+  customer_churn$imp_cons)
+customer_churn$margin_gross_pow_ele[customer_churn$margin_gross_pow_ele <0] <- median(
+  customer_churn$margin_gross_pow_ele)
+customer_churn$margin_net_pow_ele[customer_churn$margin_net_pow_ele <0] <- median(
+  customer_churn$margin_net_pow_ele)
+customer_churn$net_margin[customer_churn$net_margin <0] <- median(
+  customer_churn$net_margin)
+customer_churn$pow_max[customer_churn$pow_max <0] <- median(
+  customer_churn$pow_max)
+
+#price_data
+customer_churn$price_p1_fix[customer_churn$price_p1_fix <0] <- median(
+  customer_churn$price_p1_fix)
+customer_churn$price_p2_fix[customer_churn$price_p2_fix <0] <- median(
+  customer_churn$price_p2_fix)
+customer_churn$price_p3_fix[customer_churn$price_p3_fix <0] <- median(
+  customer_churn$price_p3_fix)
+```
+
+
+#### Outliers
+
+The easiest way to spot visually outliers is to use boxplots. We will use the boxplot function to do so.
+
+```{r outliers, echo=FALSE}
+df_box_plots <- pivot_longer(customer_churn, cols = where(is.numeric)) #reshapes data from wide to long format
+
+
+ggplot(df_box_plots, aes(x = name, y = value)) +
+  geom_boxplot() +
+  labs(title = "Box plots for all Numerical Variables",
+       x = "Variable",
+       y = "Value")
+
+#cons_12m
+ggplot(customer_churn, aes(y = "", x = cons_12m)) +
+  geom_boxplot()+ 
+  labs(title = "Box plot for cons_12m",
+       x = "Variable",
+       y = "Value")
+#forecast_cons_12m
+ggplot(customer_churn, aes(y = "", x = forecast_cons_12m)) +
+  geom_boxplot() +
+  labs(title = "Box plots for forecast_cons_12m",
+       x = "Variable",
+       y = "Value")
+```
+
+Now we will look at the z-score $$z=\frac{x-\mu}{\sigma}$$, the aim is to measures how many standard deviations a data point is from the mean of a dataset. 
+It indicates whether a data point is above or below the mean and by how much in terms of standard deviations.
+
+```{r z_score_cons_12m}
+#loading R library
+library(outliers)
+#computing z-scores
+z.cons_12m <- customer_churn$cons_12m %>% scores(type = "z")
+
+#let's look how many outliers with z>3 we got:
+length(which(abs(z.cons_12m) >3)) #408
+#I'm going to impute these values with the median
+customer_churn$cons_12m[which(abs(z.cons_12m) >3 )] <- median(
+  customer_churn$cons_12m, na.rm = TRUE)
+#check the box plot again
+ggplot(customer_churn, aes(y = "", x = cons_12m)) +
+  geom_boxplot()
+```
+
+
+First I checked the number of z-scores higher than 3 which is 408. The next step was replacing outliers with the median. The plot helps to see the difference with before.
+
+Apply the same reasoning to the other columns.
+
+```{r z_score_other_columns}
+#cons_gas_12m
+z.cons_gas_12m <- customer_churn$cons_gas_12m %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$cons_gas_12m[which(abs(z.cons_gas_12m) >3 )] <- median(
+  customer_churn$cons_gas_12m, na.rm = TRUE)
+
+#cons_last_month
+z.cons_last_month <- customer_churn$cons_last_month %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$cons_last_month[which(abs(z.cons_last_month) >3 )] <- median(
+  customer_churn$cons_last_month, na.rm = TRUE)
+
+#forecast_cons_12m
+z.forecast_cons_12m <- customer_churn$forecast_cons_12m %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_cons_12m[which(abs(z.forecast_cons_12m) >3 )] <- median(
+  customer_churn$forecast_cons_12m, na.rm = TRUE)
+
+#forecast_cons_year
+z.forecast_cons_year <- customer_churn$forecast_cons_year %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_cons_year[which(abs(z.forecast_cons_year) >3 )] <- median(
+  customer_churn$forecast_cons_year, na.rm = TRUE)
+
+#forecast_discount_energy
+z.forecast_discount_energy <- customer_churn$forecast_discount_energy %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_discount_energy[which(abs(z.forecast_discount_energy) >3 )] <- median(
+  customer_churn$forecast_discount_energy, na.rm = TRUE)
+
+#forecast_meter_rent_12m
+z.forecast_meter_rent_12m <- customer_churn$forecast_meter_rent_12m %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_meter_rent_12m[which(abs(z.forecast_meter_rent_12m) >3 )] <- median(
+  customer_churn$forecast_meter_rent_12m, na.rm = TRUE)
+
+#forecast_price_energy_p1
+z.forecast_price_energy_p1 <- customer_churn$forecast_price_energy_p1 %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_price_energy_p1[which(abs(z.forecast_price_energy_p1) >3 )] <- median(
+  customer_churn$forecast_price_energy_p1, na.rm = TRUE)
+
+#forecast_price_energy_p2
+z.forecast_price_energy_p2 <- customer_churn$forecast_price_energy_p2 %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_price_energy_p2[which(abs(z.forecast_price_energy_p2) >3 )] <- median(
+  customer_churn$forecast_price_energy_p2, na.rm = TRUE)
+
+#forecast_price_pow_p1
+z.forecast_price_pow_p1 <- customer_churn$forecast_price_pow_p1 %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$forecast_price_pow_p1[which(abs(z.forecast_price_pow_p1) >3 )] <- median(
+  customer_churn$forecast_price_pow_p1, na.rm = TRUE)
+
+#imp_cons
+z.imp_cons <- customer_churn$imp_cons %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$imp_cons[which(abs(z.imp_cons) >3 )] <- median(
+  customer_churn$imp_cons, na.rm = TRUE)
+
+#margin_gross_pow_ele
+z.margin_gross_pow_ele <- customer_churn$margin_gross_pow_ele %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$margin_gross_pow_ele[which(abs(z.margin_gross_pow_ele) >3 )] <- median(
+  customer_churn$margin_gross_pow_ele, na.rm = TRUE)
+
+#margin_net_pow_ele
+z.margin_net_pow_ele <- customer_churn$margin_net_pow_ele %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$margin_net_pow_ele[which(abs(z.margin_net_pow_ele) >3 )] <- median(
+  customer_churn$margin_net_pow_ele, na.rm = TRUE)
+
+#nb_prod_act
+z.nb_prod_act <- customer_churn$nb_prod_act %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$nb_prod_act[which(abs(z.nb_prod_act) >3 )] <- median(
+  customer_churn$nb_prod_act, na.rm = TRUE)
+
+#net_margin
+z.net_margin <- customer_churn$net_margin %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$net_margin[which(abs(z.net_margin) >3 )] <- median(
+  customer_churn$net_margin, na.rm = TRUE)
+
+#num_years_antig
+z.num_years_antig <- customer_churn$num_years_antig %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$num_years_antig[which(abs(z.num_years_antig) >3 )] <- median(
+  customer_churn$num_years_antig, na.rm = TRUE)
+
+#pow_max
+z.pow_max <- customer_churn$pow_max %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$pow_max[which(abs(z.pow_max) >3 )] <- median(
+  customer_churn$pow_max, na.rm = TRUE)
+
+#price_p1_var
+z.price_p1_var <- customer_churn$price_p1_var %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$price_p1_var[which(abs(z.price_p1_var) >3 )] <- median(
+  customer_churn$price_p1_var, na.rm = TRUE)
+
+#price_p2_var
+z.price_p2_var <- customer_churn$price_p2_var %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$price_p2_var[which(abs(z.price_p2_var) >3 )] <- median(
+  customer_churn$price_p2_var, na.rm = TRUE)
+
+#price_p3_var
+z.price_p3_var <- customer_churn$price_p3_var %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$price_p3_var[which(abs(z.price_p3_var) >3 )] <- median(
+  customer_churn$price_p3_var, na.rm = TRUE)
+
+#price_p1_fix
+z.price_p1_fix <- customer_churn$price_p1_fix %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$price_p1_fix[which(abs(z.price_p1_fix) >3 )] <- median(
+  customer_churn$price_p1_fix, na.rm = TRUE)
+
+#price_p2_fix
+z.price_p2_fix <- customer_churn$price_p2_fix %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$price_p2_fix[which(abs(z.price_p2_fix) >3 )] <- median(
+  customer_churn$price_p2_fix, na.rm = TRUE)
+
+#price_p3_fix
+z.price_p3_fix <- customer_churn$price_p3_fix %>% scores(type = "z")
+#I'm going to impute these values with the median
+customer_churn$price_p3_fix[which(abs(z.price_p3_fix) >3 )] <- median(
+  customer_churn$price_p3_fix, na.rm = TRUE)
+```
+
+#### Correlation and multiocollinearity
+
+We will now look at the correlation between the variables, in order to spot multicollinearity, if present.
+The problems we could face are:
+
+- Partial collinearity:  When one or more regressors is highly correlated with another regressor,
+ it means that there is a linear function of one regressor that is highly correlated with another. 
+ This doesn't pose any computational problems for OLS (Ordinary Least Squares), but it makes it difficult to separate the effects 
+ between the two regressors, leading to the incorrect estimation of one of them. This situation leads to issues such as non-identifiability of coefficients and unstable estimates.
+- Perfect collinearity: Perfect collinearity occurs when two or more independent variables are linearly related, making it impossible for OLS to produce unique coefficient estimates. 
+This situation results in non-identifiability, where the model cannot distinguish the individual effects of the correlated variables, causing numerical instability and unreliable parameter estimates.
+
+```{r correlation_collinearity, echo=FALSE, warning=FALSE, message=FALSE}
+
+#let's combine numeric variables in a separate set
+continuous <-select_if(customer_churn, is.numeric)
+continuous <- select(continuous, -c(churn))
+#loading R library
+library(corrplot)
+#visualizing correlation plot
+Num = cor(continuous)
+corrplot(Num, method = 'color', order = 'alphabet')
+```
+
+Some variables have correlation close to 1/-1:
+
+- forecast_cons_year and imp_cons,
+- margin_gross_pow_ele and margin_net_pow_ele.
+
+In order to avoid multicollinearity, we will drop one for each variable that are highly correlated. We will drop forecast_cons_year and margin_net_pow_ele from the data set.
+
+```{r remove_multicollinearity}
+final_data <- select(continuous, -c(forecast_cons_year, margin_net_pow_ele))
+```
+
+#### Data Normalization
+
+
+As usual in machine learning, we will normalize the data because of convencience and the necessit of this assumption for some models, like:
+
+- Linear regression: the normality assumption pertains to the residuals, not the independent variables. The residuals should ideally follow a normal distribution for valid inference.
+
+- Linear Discriminant Analysis (LDA): It assumes that the input features for each class are normally distributed and that all classes share the same covariance matrix. Violations of these assumptions can affect the model's performance.
+
+- Naive Bayes: It assumes that the likelihood of the features is Gaussian. If this assumption is violated, the model's performance can be affected.
+
+- Analysis of Variance (ANOVA): It is a statistical method used to compare the means of two or more groups. It assumes that the residuals from the model are normally distributed.
+
+- Logistic regression: While logistic regression does not require the normality assumption for the independent variables, it assumes that the errors are normally distributed in the transformed space.
+
+We are not striclty normalizing the data, but we are transforming it in a way that it is more normally distributed. Using log transformation, which is a common way to do so.
+```{r normality}
+final_data$cons_12m <- log10(final_data$cons_12m +1)
+final_data$cons_gas_12m <- log10(final_data$cons_gas_12m +1)
+final_data$cons_last_month <- log10(final_data$cons_last_month +1)
+final_data$forecast_cons_12m <- log10(final_data$forecast_cons_12m +1)
+final_data$forecast_discount_energy <- log10(final_data$forecast_discount_energy +1)
+final_data$forecast_meter_rent_12m <- log10(final_data$forecast_meter_rent_12m +1)
+final_data$forecast_price_energy_p1 <- log10(final_data$forecast_price_energy_p1 +1)
+final_data$forecast_price_energy_p2 <- log10(final_data$forecast_price_energy_p2 +1)
+final_data$forecast_price_pow_p1 <- log10(final_data$forecast_price_pow_p1 +1)
+final_data$imp_cons <- log10(final_data$imp_cons +1)
+final_data$margin_gross_pow_ele <- log10(final_data$margin_gross_pow_ele +1)
+final_data$nb_prod_act <- log10(final_data$nb_prod_act +1)
+final_data$net_margin <- log10(final_data$net_margin +1)
+final_data$num_years_antig <- log10(final_data$num_years_antig +1)
+final_data$pow_max <- log10(final_data$pow_max +1)
+```
+
+### Data standaridzation
+
+
+Standardization is the process of transforming data in a way that the mean of each column is 0 and the standard deviation is 1. Also very common in machine learning, it is a requirement for some models.
+
+```{r standardization}
+#standardizing the data
+final_data_standardized <- scale(final_data)
+
+final_data_standardized <- as.data.frame(final_data_standardized)
+
+
+```
+### Final data 
+
+
+Let's combine the final data with the original dataset, and remove the unnecessary columns.
+```{r final_data}
+final_data <- cbind(lapply(customer_churn[, !sapply(customer_churn, is.numeric)], as.factor), final_data_standardized, churn=as.factor(customer_churn$churn))
+#remove unnecessary columns
+final_data <- select(final_data, -c(date_activ, date_end, date_modif_prod, date_renewal,price_date, id))
+
+
+class(final_data$activity_new)
+summary(final_data)
+
+apply(final_data,2,sd)
+```
+
+Now it's time to see how all of the changes we made affected the data, for instance let's look at the distribution of the cons_12m variable before and after the transformations.
+
+
+```{r final_data_summary, echo=FALSE, warning=FALSE, message=FALSE}
+#before transformation
+ggplot(customer_churn, aes(x=cons_12m)) +geom_histogram() + labs(title="Electricity consumption before processing") +
+  theme(plot.title = element_text(size = 30),axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25))
+#after transformation
+ggplot(final_data, aes(x=cons_12m)) +geom_histogram() + labs(title="Electricity consumption after processing") +
+  theme(plot.title = element_text(size = 30),axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25))
+```
+
+
+There are still some outliers, suggesting that the distribution has two peaks. It could be modeled with a mixture of two normal distributions.
+
+
+### Data splitting
+
+```{r splitting_data}
+
+library(caret)
+
+set.seed(123)
+split_train_val_test <- function(data, train_size=0.7, val_size=0.5){
+  trainIndex <- createDataPartition(data[,1], p = train_size, 
+                                    list = FALSE, 
+                                    times = 1)
+  df_train <- data[trainIndex, ,drop=FALSE]
+  val_test_data <- data[-trainIndex, ,drop=FALSE]
+  val_test_index <- createDataPartition(val_test_data[,1],
+                                           p = val_size,
+                                           list = FALSE,
+                                           times = 1)
+  df_val <- val_test_data[-val_test_index, ,drop=FALSE]
+  df_test <- val_test_data[val_test_index, ,drop=FALSE]
+  return(list(df_train = df_train, df_val = df_val, df_test = df_test))
+}
+
+
+#create a only numerical dataset for the final data, some models require it
+X_numerical <- select_if(final_data, is.numeric)
+X_numerical <- cbind(X_numerical, churn=final_data$churn)
+#split between covariates and label, both for only numerical and for numerical+categorical
+X= select(final_data, -churn)
+Y=select(final_data, churn)
+
+# Split numerical dataset into train and test
+list_df_numerical <- split_train_val_test(X_numerical)
+
+df_train_small_num <- list_df_numerical$df_train
+df_val_num <- list_df_numerical$df_val
+df_train_num <- rbind(df_train_small_num, df_val_num)
+df_test_num <- list_df_numerical$df_test
+df_train_wo_y_num <- select(df_train_num, -churn)
+df_test_wo_y_num <- select(df_test_num, -churn)
+
+#Split whole dataset into train and test
+list_df <- split_train_val_test(final_data)
+
+df_train_small <- list_df$df_train
+df_val <- list_df$df_val
+df_train <- rbind(df_train_small, df_val)
+df_test <- list_df$df_test
+df_train_wo_y <- select(df_train, -churn)
+df_test_wo_y <- select(df_test, -churn)
+
+
+# Check the number of rows in each dataset to assess if they are equal to the original dataset
+nrow(df_train_small) + nrow(df_val) + nrow(df_test) == nrow(final_data)
+```
+
+### Visualization of the final data
+
+
+```{r correlation_matrix, echo=FALSE, warning=FALSE, message=FALSE}
+boxplot(X_numerical, col="gold", ylim= c(-7,7))
+
+pairs(final_data[,1:6], col=final_data$churn)
+
+```
+
+
+# Models specification
+
+## Unsupervised
+
+Utilizing unsupervised methods, such as hierarchical clustering or k-means clustering, in the presence of available labels can offer a holistic approach to data analysis, enabling exploration of underlying structures, validation of existing labels, and discovery of hidden patterns that may enhance the understanding of the dataset beyond predefined class distinctions. 
+
+### PCA
+
+Cosa fare? 
+- scrivi cosa fa la funzione prcomp (come stima la covariance-variance matrix)
+- il rapporto con lo spectral theorem
+
+AGGIUNGERE SCREE PLOT VS CUMULATIVE PER SCEGLIERE NUMERO DI PCs
+```{r PCA_setup}
+seed=123
+set.seed(seed)
+X_numerical_wo_y = select(X_numerical, -churn)
+p=ncol(X_numerical_wo_y)
+
+# Load or read the dataset
+
+# unlink("data_models/pc.RDS") # if you want to run it again
+if (!file.exists("data_models/pc.RDS")) {
+  # Create dataset if not present1
+  pc = prcomp(X_numerical_wo_y,center = FALSE) # already centered before
+  saveRDS(pc, "data_models/pc.RDS")
+}else {
+  pc=readRDS("data_models/pc.RDS")
+}
+q# contains: 
+# - standard deviations: square roots of eigenvalues (sd of principal components)
+# - rotation: principal components - eigenvectors
+# - center: sample means
+# - scale: logical: were the data scaled before computing PCs?
+# - x: rotated data (scores)
+
+
+sd = pc$sdev
+
+#cumulative variance explained by the PC
+layout(cbind(1,2))
+# screeplot
+plot(sd^2/sum(sd^2),type="o",pch=19,xlab="Component", main = "Scree plot",ylab='Proportion of variance') 
+abline(h=1/p,col='gray') 
+grid()
+
+#cumulative
+plot(cumsum(sd^2)/sum(sd^2),type="o",pch=19,xlab="Component", main = "Cumulative scree plot",ylab='Cumulative proportion of variance',ylim=c(0,1)) 
+grid() 
+abline( h = (0.85), col="gray")
+# 8 is the best
+
+# Create the new dataset with dimension reduction to later apply logistic on it later on
+pc_data <- as.data.frame(pc$x[,1:8])
+pc_data <- cbind(pc_data, churn=final_data$churn)
+pc_data_full <- split_train_val_test(pc_data)
+pc_train_small <- pc_data_full$df_train
+pc_val <- pc_data_full$df_val
+pc_test <- pc_data_full$df_test
+pc_train <- rbind(pc_train_small, pc_val)
+
+
+
+# rotated data plot with directions
+layout(rbind(c(2,0),c(1,3)),heights=c(0.3,1),widths=c(1,0.3))
+par(mar=c(2,2,1,1))
+plot(pc$x,pch=16,asp=1,cex=1.5)
+abline(h=0)
+abline(v=0)
+arrows(0,0,0,1,lwd=3,col=3)
+arrows(0,0,1,0,lwd=3,col=3)
+
+usr.scatterplot = par('usr')
+
+x1hist <- hist(pc$x[,1], plot = FALSE, breaks = seq(min(pc$x[,1]), max(pc$x[,1]), len = 11))
+barplot(x1hist$density, diff(x1hist$breaks), axes = TRUE, space = 0, horiz = FALSE, xlab = "", ylab = "", xaxs = "i")
+
+x2hist <- hist(pc$x[,2],plot = FALSE,breaks=seq(min(pc$x[,2]), max(pc$x[,2]),len=15))
+barplot(x2hist$density,diff(x2hist$breaks), axes = TRUE, space = 0, horiz=TRUE, xlab= "", ylab="",yaxs='i')
+
+
+cor(pc$x[,1],pc$x[,2]) # numerical zero
+
+
+# new representation:
+pairs(pc$x[,1:6],pch=16,asp=1,xlim=range(pc))
+
+image(cor(pc$x)) # uncorrelated
+
+image(var(pc$x)) # uncorrelated
+
+
+# loadings:
+pcs = pc$rotation
+
+layout(matrix(1:4,nrow=2,byrow=TRUE))
+barplot((pcs[,1]),beside=T,axis.lty="solid",col=rainbow(p),main='First principal component',xlab='Original variables',names.arg = 1:p)
+barplot((pcs[,2]),beside=T,axis.lty="solid",col=rainbow(p),main='Second principal component',xlab='Original variables',names.arg = 1:p)
+barplot((pcs[,3]),beside=T,axis.lty="solid",col=rainbow(p),main='Third principal component',xlab='Original variables',names.arg = 1:p)
+barplot((pcs[,4]),beside=T,axis.lty="solid",col=rainbow(p),main='Fourth principal component',xlab='Original variables',names.arg = 1:p)
+length(pcs[,1])
+
+# biplot -> viene brutto
+layout(1)
+biplot(pc,scale=0, cex=.7)
+
+```
+
+Firstly, it's evident that targeting an 85% variance explained threshold drastically reduces the number of principal components required from our initial 21 to a mere 8. This sharp reduction emphasizes the concentration of explanatory power within fewer components.
+
+Given that higher absolute values of loadings indicate greater importance for the observed principal component, it's notable that only the first few components hold significant interpretability. Specifically, the first and second components display contrasting trends: the former primarily captures variance from the latter variables, while the latter focuses more on the initial variables. We've provided a biplot to visually illustrate these contrasting trends for enhanced clarity.
+
+In contrast, subsequent principal components exhibit a markedly different pattern. Here, only a handful of variables—often two or three—dominate the overall importance, underscoring the diminishing significance and interpretability of these components.
+
+
+
+
+### hclustering
+
+
+```{r hierarchical_clustering}
+
+library(factoextra) # for silhouette computations
+library(cluster)
+
+
+set.seed(seed)
+# Let's work on a quarter of the initial dataset selected randomly because
+# with more R would crash when running hclust() due to the ram needed to run it
+df_train_30_num=df_train_small_num[1:as.numeric(nrow(df_train_small_num)*0.3),]
+df_train_30_num_wo_y = df_train_30_num[,-ncol(df_train_30_num)]
+
+# unlink("data_models/hc_complete.RDS") # if you want to run it again
+# unlink("data_models/hc_ward.RDS") # if you want to run it again
+if (!(file.exists("data_models/hc_complete.RDS") & file.exists("data_models/hc_ward.RDS"))) {
+  euclidean = dist(df_train_30_num_wo_y)
+  hc_complete <- hclust(euclidean, method = "complete")
+  hc_ward <- hclust(euclidean, method ="ward.D2")
+  saveRDS(hc_complete, "data_models/hc_complete.RDS")
+  saveRDS(hc_ward, "data_models/hc_ward.RDS")
+}else {
+  hc_complete <- readRDS("data_models/hc_complete.RDS")
+  hc_ward <- readRDS("data_models/hc_ward.RDS")
+}
+
+
+
+# we can see that the highest gain is made in the first cluster, it agrees with
+# the real nature of the labels (two classes) that we know
+plot(hc_complete)
+plot(hc_ward)
+
+
+# Let's cut the dendrogram
+k=2
+hc.cut_complete=cutree(hc_complete,k=k)
+hc.cut_ward=cutree(hc_ward,k=k)
+
+sum(hc.cut_complete==2)/length(hc.cut_complete)
+sum(hc.cut_ward==2)/length(hc.cut_ward)
+
+
+plot(X_numerical[,1:3],pch=16,cex=1.5,col=as.factor(hc.cut_complete),main='Complete')
+plot(X_numerical[,1:3],pch=16,cex=1.5,col=as.factor(hc.cut_ward),main='Ward')
+
+confusion_matrix_hclust_complete <- confusionMatrix(data = factor(hc.cut_complete-1), 
+                                                    reference = df_train_30_num$churn)
+confusion_matrix_hclust_ward <-  confusionMatrix(data = factor(hc.cut_ward-1),
+                                                 reference = df_train_30_num$churn)
+confusion_matrix_hclust_complete
+confusion_matrix_hclust_ward
+```
+Both are very far from the realiry we know (90% non-churn and 10% churn)
+
+Using the complete link method basically can't see the distinction because the method "predicted" a very low number of churns leading to. On the other hand, with the ward method the split is 60/40. For this reasoning we have to take into account the randomness introduced due to random sampling, necessary for computational reasons. Maybe cv would be better but we would require a better machine.
+
+
+### k-means
+```{r k_means}
+set.seed(seed)
+# unlink("data_models/kmeans.RDS") # if you want to run it again
+if (!file.exists("data_models/kmeans.RDS")) {
+  kmeans_res <- kmeans(X_numerical, centers = 2, nstart = 25)
+  saveRDS(kmeans_res, "data_models/kmeans.RDS")
+}else {
+  kmeans_res <- readRDS("data_models/kmeans.RDS")
+}
+
+plot(X_numerical[,1:2],pch=16,cex=2,ylim=range(X_numerical[,2],X_numerical[,2]+0.1),xlim=range(X_numerical[,1],X_numerical[,1]+0.1), asp=1,col=kmeans_res$cluster)
+kmeans_res$tot.withinss # Total within-cluster sum of squares
+
+# Assign cluster labels
+cluster_labels <- kmeans_res$cluster
+
+# Assuming you have true labels stored in a variable called 'true_labels'
+# Create a confusion matrix
+confusion_matrix_kmeans <- confusionMatrix(as.factor(cluster_labels-1), as.factor(Y$churn))
+confusion_matrix_kmeans
+```
+
+This result is really similar to what we got for heurirchical clustering using the ward linkage method, so the same reasoning applies. The split is very far from reality but we like some specifity since our aim is to predict churns. We would make a lot of mistakes but some would be right.
+
+### EM 
+
+We have seen before that the assumption of normality (after preprocessing) is a fair one, so EM is a viable option
+
+```{r em}
+set.seed(seed)
+library(mclust)
+
+# unlink("data_models/em.RDS") # if you want to run it again
+if (!file.exists("data_models/em.RDS")) {
+  em_res = Mclust(X_numerical,G=2)
+  saveRDS(em_res, "data_models/em.RDS")
+}else {
+  em_res <- readRDS("data_models/em.RDS")
+}
+
+
+em_res$BIC
+em_res$bic
+
+coef.em <- em_res$parameters
+
+clusters_labels <- em_res$classification
+
+
+addalpha <- function(colors, alpha=1.0) {
+  r <- col2rgb(colors, alpha=T)
+  # Apply alpha
+  r[4,] <- alpha*255
+  r <- r/255.0
+  return(rgb(r[1,], r[2,], r[3,], r[4,]))
+}
+
+n=nrow(X_numerical)
+col.levels=palette()[1:2]
+col.1 = addalpha(rep(col.levels[1],n),alpha=em_res$z[,1])
+col.2 = addalpha(rep(col.levels[2],n),alpha=em_res$z[,2])
+plot(X_numerical[,1:2],pch=16,cex=2,asp=1,col=col.1)
+points(X_numerical,pch=16,cex=2,asp=1,col=col.2)
+
+confusion_matrix_em<- confusionMatrix(as.factor(clusters_labels-1), as.factor(Y$churn))
+confusion_matrix_em
+
+```
+
+Again, similar situation to both hierarchical clustering with ward linkage method and k means, only a bit improved: more accuracy with specificity higher than 0. Very far from reality
+
+
+## Supervised
+### Linear models
+#### Logistic regression
+
+
+```{r logistic_regression}
+set.seed(seed)
+# unlink("data_models/logistic.RDS") #if you want to run it again
+if (!file.exists("data_models/logistic.RDS")) {
+  mylogit = glm(churn~.,family='binomial',data=df_train)
+  saveRDS(mylogit, "data_models/logistic.RDS")
+}else {
+  mylogit <- readRDS("data_models/logistic.RDS")
+}
+
+barplot(mylogit$coefficients)
+abline(h=1)
+
+
+# performances in classification
+prob=predict(mylogit, type=c("response"))
+coef.logistic <- coef(mylogit)
+
+
+## CONFUSION MATRIX ON TRAINING DATA 
+library(ROCR)
+library(caret)
+pred <- prediction(prob, df_train$churn)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+
+# Convert predicted values to factor with consistent levels
+predicted <- factor(ifelse(prob > 0.5, 1, 0), levels = c(0, 1))
+
+# Convert actual values to factor with consistent levels
+actual <- factor(df_train$churn, levels = c(0, 1))
+
+# Create a confusion matrix 
+confusion_matrix_logistic_train <- confusionMatrix(data = predicted, reference = actual)
+confusion_matrix_logistic_train
+
+# overfitting!
+
+hist(prob)
+
+
+
+## CONFUSION MATRIX ON TEST DATA
+# performances in classification
+prob=predict(mylogit, newdata= df_test,type="response")
+
+
+pred <- prediction(prob, df_test$churn)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+
+
+# Convert predicted values to factor with consistent levels
+predicted <- factor(ifelse(prob > 0.5, 1, 0), levels = c(0, 1))
+
+# Convert actual values to factor with consistent levels
+actual <- factor(df_test$churn, levels = c(0, 1))
+
+# Create a confusion matrix 
+confusion_matrix_logistic <- confusionMatrix(data = predicted, reference = actual)
+confusion_matrix_logistic
+
+# overfitting!
+
+hist(prob)
+
+```
+#### PLS-DA
+```{r plds-da}
+# unlink("data_models/plsda.RDS") if you want to run it again
+if (!file.exists("data_models/plsda.RDS")) {
+  model_plsda = caret::plsda(df_train_wo_y_num, df_train_num$churn, ncomp=5,
+                             promptMethod = 'softmax', cv = list('rand', 10, 1))
+  saveRDS(model_plsda, "data_models/plsda.RDS")
+}else {
+  model_plsda <- readRDS("data_models/plsda.RDS")
+}
+
+
+
+predicted <- predict(model_plsda, df_test_wo_y_num)
+
+
+
+histogram(~predict(model_plsda, df_test_wo_y_num, type = "prob")[,"0",]
+          | as.factor(df_test_num$churn), xlab = "Active Prob", xlim = c(-.1,1.1))
+
+confusion_matrix_plsda <- confusionMatrix(predicted, as.factor(df_test_num$churn))
+confusion_matrix_plsda
+```
+Basically same results as stupid classifier that always predicts non-churn. The plot tells us with which percentage it predicts that the class is 0 both when the class is 0 (left) and when class is 1.
+#### Ridge and Lasso
+
+```{r logistic_ridge}
+library(glmnet)
+# Ridge
+set.seed(1)
+lambda.grid = 10^seq(7,-4, length =100)
+# unlink("data_models/cv_ridge.RDS") if you want to run it again
+if (!file.exists("data_models/cv_ridge.RDS")) {
+  cv.out_ridge<- cv.glmnet(as.matrix(df_train_wo_y), df_train$churn, type.measure="class", 
+                           alpha=0, family="binomial", lambda = lambda.grid)
+  saveRDS(cv.out_ridge, "data_models/cv_ridge.RDS")
+}else {
+  cv.out_ridge <- readRDS("data_models/cv_ridge.RDS")
+}
+plot(cv.out_ridge)
+
+bestlam = cv.out_ridge$lambda.1se
+bestlam
+
+ridge.mod = glmnet(as.matrix(df_train_wo_y), df_train$churn, type.measure="class",
+                   alpha=0, family="binomial", lambda = lambda.grid) 
+
+p=ncol(df_test_wo_y)
+std.coeff = ridge.mod$beta * matrix(apply(as.matrix(df_train_wo_y),2,sd),nrow=p,
+                                    ncol=length(lambda.grid),byrow=FALSE)
+matplot(ridge.mod$lambda,t(std.coeff),type='l',lty=1,lwd=2,col=rainbow(11),
+        log='x',xlab='Lambda',ylab='Standardized coefficients',main='Ridge regression')
+abline(v=bestlam)
+
+coeff.ridge <- predict(ridge.mod, type="coefficients",s=bestlam)
+coeff.ridge
+
+prob <- predict(ridge.mod, newx = as.matrix(df_test_wo_y), type="response",s=bestlam)
+predicted <- factor(ifelse(prob > 0.5, 1, 0), levels = c(0, 1))
+
+actual <- factor(df_test$churn)
+hist(prob)
+
+confusion_matrix_ridge <- confusionMatrix(data = predicted, reference = actual)
+confusion_matrix_ridge
+```
+Basically same results as stupid classifier that always predicts non-churn
+
+```{r lasso}
+
+# Lasso
+set.seed(1)
+# unlink("data_models/cv_lasso.RDS") if you want to run it again
+if (!file.exists("data_models/cv_lasso.RDS")) {
+  cv.out_lasso<- cv.glmnet(as.matrix(df_train_wo_y), df_train$churn, type.measure="class", alpha=1, family="binomial", lambda= lambda.grid)
+  saveRDS(cv.out_lasso, "data_models/cv_lasso.RDS")
+}else {
+  cv.out_lasso <- readRDS("data_models/cv_lasso.RDS")
+}
+plot(cv.out_lasso)
+
+bestlam = cv.out_lasso$lambda.1se
+bestlam
+
+lasso.mod = glmnet(as.matrix(df_train_wo_y), df_train$churn, type.measure="class", alpha=1, family="binomial", lambda= lambda.grid)
+
+std.coeff = lasso.mod$beta * matrix(apply(as.matrix(df_train_wo_y),2,sd),nrow=p,ncol=length(lambda.grid),byrow=FALSE)
+matplot(lasso.mod$lambda,t(std.coeff),type='l',lty=1,lwd=2,col=rainbow(11),log='x',xlab='Lambda',ylab='Standradized coefficients',main='Lasso')
+abline(v=bestlam)
+
+coeff.lasso <- predict(cv.out_lasso,type="coefficients",s=bestlam)
+coeff.lasso # in this case lasso is setting only some coefficients to zero
+
+prob <- predict(lasso.mod, newx = as.matrix(df_test_wo_y), type="response",s=bestlam)
+predicted <- factor(ifelse(prob > 0.5, 1, 0), levels = c(0, 1))
+
+hist(prob)
+
+confusion_matrix_lasso <- confusionMatrix(data = predicted, reference = df_test$churn)
+confusion_matrix_lasso
+
+cbind(coeff.lasso,coeff.ridge) # in this case lasso is doing quite a good job
+
+
+
+```
+Basically same results as stupid classifier that always predicts non-churn
+
+
+
+### GAM
+
+```{r GAM}
+library(mgcv)
+library(gam)
+library(tidyverse)
+library(kableExtra)
+# unlink("data_models/gam.RDS") if you want to run it again
+if (!file.exists("data_models/gam.RDS")) {
+  df=4
+  gam.res <- mgcv::gam(churn ~ s(cons_12m,k=df) + s(cons_gas_12m,k=df) + s(cons_last_month,k=df) +
+                         s(forecast_cons_12m,k=df) +s(forecast_meter_rent_12m,k=df)+
+                         s(forecast_price_energy_p1,k=df) + s(forecast_price_energy_p2,k=df) +
+                         s(forecast_price_pow_p1,k=df)+ s(imp_cons,k=df) + s(margin_gross_pow_ele,k=df)+
+                         s(nb_prod_act,k=df)+ s(net_margin,k=df) + s(num_years_antig,k=df) +
+                          +s(price_p2_var,k=df) +s(price_p3_var,k=df) +s(price_p1_fix,k=df) +
+                         +s(price_p3_fix,k=df) +has_gas,
+                        method = "REML",
+                        family = binomial,
+                        optimizer=c("outer","newton"),
+                        data = df_train
+                      )
+  
+  saveRDS(gam.res, "data_models/gam.RDS")
+}else {
+  gam.res <- readRDS("data_models/gam.RDS")
+}
+summary(gam.res)
+layout(matrix(1:18, nrow = 3, byrow = TRUE))
+par(mar = c(4, 1, 1, 1))  # Adjust the margins (bottom, left, top, right)
+plot(gam.res,se=TRUE, all.terms=TRUE)
+
+
+ 
+df_test_gam <- df_test[, c("cons_12m", "cons_gas_12m", "cons_last_month", 
+                            "forecast_cons_12m", "forecast_meter_rent_12m",
+                            "forecast_price_energy_p1", "forecast_price_energy_p2",
+                            "forecast_price_pow_p1", "imp_cons", "margin_gross_pow_ele",
+                            "nb_prod_act", "net_margin", "num_years_antig",
+                            "price_p2_var", "price_p3_var", "price_p1_fix",
+                            "price_p3_fix", "has_gas")]
+
+prob = predict(gam.res,newdata=df_test_gam,  type = "response")
+
+predicted <- as.factor(ifelse(prob > 0.5, 1, 0))
+confusion_matrix_gam <- confusionMatrix(data = predicted, reference = df_test$churn)
+confusion_matrix_gam
+```
+
+IIRC, Simon Wood has shown that under certain assumptions, the outer iteration approach is garanteed to converge.
+
+### Non parametric classification methods
+
+#### KNN
+```{r knn}
+library(class)
+library(ggplot2)
+library(lattice)
+
+# unlink("data_models/knn.RDS") if you want to run it again
+if (!file.exists("data_models/knn.RDS")) {
+  #returns the predicted class for a set of points
+  knn.res = class::knn(df_train_wo_y_num,df_test_wo_y_num,cl=df_train_num$churn, prob=TRUE,k=5) 
+  saveRDS(knn.res, "data_models/knn.RDS")
+}else {
+  knn.res <- readRDS("data_models/knn.RDS")
+}
+
+plot(df_test_wo_y_num[,1:2],pch=4,col=df_test_num$churn)
+points(df_test_wo_y_num[,1:2],pch=1,col=knn.res,lwd=2,cex=1.4)
+
+prob = attr(knn.res,"prob")
+predicted = ifelse(knn.res == 1, prob, 1-prob) 
+
+library(ROCR)
+pred <- prediction(predicted, df_test_num$churn)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE,lwd=3)
+
+auc <- performance(pred,"auc")
+auc <- auc@y.values[[1]]
+
+auc
+plot(df_test_num[1:2])
+
+confusion_matrix_knn <- confusionMatrix(knn.res, df_test_num$churn)
+confusion_matrix_knn
+```
+
+#### SVC
+```{r lda}
+library(e1071)
+# unlink("data_models/svc.RDS") if you want to run it again
+if (!file.exists("data_models/svc.RDS")) {
+  #returns the predicted class for a set of points
+  cost_values <- c(0.01, 0.1, 1,5,10)  # Example values, adjust as needed
+  
+  # Initialize variables to store results
+  accuracy_scores <- numeric(length(cost_values))
+  
+  # Perform parameter tuning
+  for (i in seq_along(cost_values)) {
+    # Train SVM model with current cost value
+    model <- svm(churn ~ ., data = df_train_30_num, kernel = "linear", cost = cost_values[i], scale = FALSE)
+    
+    # Perform cross-validation and calculate accuracy
+    pred <- predict(model, newdata = df_val_num)
+    accuracy_scores[i] <- mean(pred == df_val_num$churn)
+  }
+  
+  # Find the index of the cost parameter with the highest accuracy
+  best_cost_index <- which.max(accuracy_scores)
+  best_cost <- cost_values[best_cost_index]
+  
+  # Train the final SVM model with the best cost parameter
+  svc.res <- svm(churn ~ ., data = df_train_30_num, kernel = "linear", cost = best_cost, scale = FALSE)
+  saveRDS(svc.res, "data_models/svc.RDS")
+}else {
+  svc.res <- readRDS("data_models/svc.RDS")
+}
+summary(svc.res)
+
+
+prob=predict(svc.res,df_test_num)
+confusion_matrix_svc <- caret::confusionMatrix(data = as.factor(prob), reference = df_test_num$churn)
+
+confusion_matrix_svc
+```
+
+#### SVM
+```{r qda}
+# unlink("data_models/svm.RDS") if you want to run it again
+if (!file.exists("data_models/svm.RDS")) {
+  #returns the predicted class for a set of points
+  cost_values <- c(0.01, 0.1, 1,5,10)
+  gamma_values <- c(0.5,1,2,3,4)
+  
+  # Initialize variables to store results
+  accuracy_scores <- matrix(NA, nrow = length(cost_values), ncol = length(gamma_values), 
+                          dimnames = list(as.character(cost_values), as.character(gamma_values)))
+  specificity_scores <- matrix(NA, nrow = length(cost_values), ncol = length(gamma_values), 
+                          dimnames = list(as.character(cost_values), as.character(gamma_values)))
+  
+  # Perform parameter tuning
+  count=0
+  for (i in seq_along(cost_values)) {
+    for (j in seq_along(gamma_values)){
+    # Train SVM model with current cost value
+    model <- svm(churn ~ ., data = df_train_30_num, kernel = "radial", cost = cost_values[i], gamma=gamma_values[j], scale = FALSE)
+    
+    # Perform cross-validation and calculate accuracy
+    pred <- predict(model, newdata = df_val_num)
+    conf_matrix <- table(Predicted = pred,Actual = df_val_num$churn)
+
+    # Extract True Negatives (TN) and False Positives (FP)
+    TN <- conf_matrix[2, 2]
+    FP <- conf_matrix[1, 2]
+    
+    # Calculate specificity
+    specificity <- TN / (TN + FP)
+    
+    accuracy_scores[i, j] <- mean(pred==df_val_num$churn)
+    specificity_scores[i, j] <- specificity
+    
+    count=count+1
+    print(count)
+    }
+  }
+  
+  # Find the indices of the cost and gamma parameters with the highest accuracy
+  best_indices <- which(specificity_scores == max(specificity_scores), arr.ind = TRUE)
+  best_cost <- as.numeric(rownames(specificity_scores)[best_indices[1, 1]])
+  best_gamma <- as.numeric(colnames(specificity_scores)[best_indices[1, 2]])
+  
+  # Train the final SVM model with the best cost and gamma parameters
+  svm.res <- svm(churn ~ ., data = df_train_30_num, kernel = "radial", 
+                     cost = best_cost, gamma = best_gamma, scale = FALSE)
+  saveRDS(svm.res, "data_models/svm.RDS")
+}else {
+  svm.res <- readRDS("data_models/svm.RDS")
+}
+
+
+summary(svm.res)
+
+prob=predict(svm.res,df_test_num)
+confusion_matrix_svm <- caret::confusionMatrix(data = as.factor(prob), reference = df_test_num$churn)
+
+confusion_matrix_svm
+
+
+# Plot SVM decision boundary
+plot(svm.res, df_train_30_num, formula = cons_12m ~ cons_gas_12m, 
+     xlim = c(min(df_train_30_num$cons_gas_12m), max(df_train_30_num$cons_gas_12m)), 
+     ylim = c(min(df_train_30_num$cons_12m), max(df_train_30_num$cons_12m)),
+     col.regions = heat.colors(50), # Color gradient for decision regions
+     pch = 16, # Point type
+     cex = 1.5, # Point size
+     main = "SVM Decision Boundary", # Title
+     xlab = "cons_gas_12m", # X-axis label
+     ylab = "cons_12m" # Y-axis label
+     )
+
+
+
+```
+
+
+
+### Classification trees
+
+```{r classification tree}
+
+library(tree)
+# Load the required libraries
+library(rpart)
+library(rpart.plot)
+library(rms)
+
+
+if (!file.exists("data_models/class_tree.RDS")) {
+  tree.res <- rpart(as.factor(churn)~ ., data = final_data, method="class", control = rpart.control(cp = 0.01))
+  
+  tree.res <- tree(churn~ ., data = df_train)
+  cv.tree = cv.tree(tree.res ,FUN=prune.misclass,K=1000) 
+  saveRDS(tree.res, "data_models/class_tree.RDS")
+  saveRDS(cv.tree, "data_models/cv_class_tree.RDS")
+}else {
+  tree.res <- readRDS("data_models/class_tree.RDS")
+  cv.tree <- readRDS("data_models/cv_class_tree.RDS")
+}
+
+layout(1)
+plot(tree.res,lwd=2,col='darkgray')
+text(tree.res,pretty=0,cex=1,digits=4,font=2,col='blue')
+
+plot(cv.tree$size,cv.tree$dev,type='b',pch=16,xlab='Size',ylab='CV error')
+
+```
+
+### Trees improved
+#### Bagging and random forest
+
+```{r bagging}
+library(randomForest)
+library(ggraph)
+library(igraph)
+
+if (!file.exists("data_models/bag.RDS")) {
+  set.seed(seed)
+  # we start optimizing the parameter mtry
+  # we will compute OOb error and MSE (by 10-fold CV on the training set)
+  mtry.explore = 1:(ncol(df_train)-1)
+  oob.err<-double(length(mtry.explore))
+  
+  nfolds = 10
+  folds = sample(1:nfolds,dim(df_train)[1],replace = TRUE)
+  cv.error = matrix(ncol=length(mtry.explore),nrow=nfolds)
+  
+  
+  #mtry is no of Variables randomly chosen at each split
+  for(mtry in 1:length(mtry.explore)) {
+    set.seed(1)
+    rf=randomForest(churn ~ . , data = df_train,mtry=mtry,ntree=200) 
+    
+    oob.err[mtry] =rf$err.rate[nrow(rf$err.rate), "OOB"] #Error of all Trees fitted
+    
+    # CV 
+    for(j in 1:nfolds){
+      set.seed(1)
+      rf=randomForest(churn ~ . , data = df_train , subset = which(folds != j),mtry=mtry,ntree=200) 
+      pred<-predict(rf,df_train[which(folds == j),]) #Predictions on fold j
+      cv.error[j, mtry] <- mean(pred != df_train$churn[which(folds == j)]) 
+      
+    }
+    
+    cat(mtry," ")
+    
+  }
+  
+  test.err = apply(cv.error,2,mean)
+  
+  set.seed(1)
+  min_mtry <- which.min(test.err)
+  rf.res <- randomForest(churn ~ . , data = df_train,mtry=min_mtry,ntree=1000)
+
+  saveRDS(test.err, "data_models/cv_rf.RDS")
+  saveRDS(rf.res, "data_models/rf.RDS")
+}else {
+  rf.res <- readRDS("data_models/rf.RDS")
+  test.err <- readRDS("data_models/cv_rf.RDS")
+}
+matplot(1:24 , test.err, pch=19 , col=c("red","blue"),type="b",ylab="Mean Squared Error",xlab="Number of Predictors Considered at each Split")
+legend("topright",legend=c("Out of Bag Error","CV Error"),pch=19, col=c("red","blue"))
+# they both suggest mtry=3
+
+# Predict on test data
+predictions <- predict(rf.res, newdata = df_test)
+
+#Variable Importance plot
+varImpPlot(rf.res)
+# Create confusion matrix
+confusion_matrix_rf <- caret::confusionMatrix(predictions, df_test$churn)
+confusion_matrix_rf
+
+
+plot_rf_tree <- function(final_model, 
+                      tree_num) {
+  
+  # get tree by index
+  tree <- randomForest::getTree(final_model, 
+                                k = tree_num, 
+                                labelVar = TRUE) %>%
+    tibble::rownames_to_column() %>%
+    # make leaf split points to NA, so the 0s won't get plotted
+    mutate(`split point` = ifelse(is.na(prediction), `split point`, NA))
+  
+  # prepare data frame for graph
+  graph_frame <- data.frame(from = rep(tree$rowname, 2),
+                            to = c(tree$`left daughter`, tree$`right daughter`))
+  
+  # convert to graph and delete the last node that we don't want to plot
+  graph <- graph_from_data_frame(graph_frame) %>%
+    delete_vertices("0")
+  
+  # set node labels
+  V(graph)$node_label <- gsub("_", " ", as.character(tree$`split var`))
+  V(graph)$leaf_label <- as.character(tree$prediction)
+  V(graph)$split <- as.character(round(tree$`split point`, digits = 2))
+  
+  # plot
+  plot <- ggraph(graph, 'dendrogram') + 
+    theme_bw() +
+    geom_edge_link() +
+    geom_node_point() +
+    geom_node_text(aes(label = node_label), na.rm = TRUE, repel = TRUE) +
+    geom_node_label(aes(label = split), vjust = 2.5, na.rm = TRUE, fill = "white") +
+    geom_node_label(aes(label = leaf_label, fill = leaf_label), na.rm = TRUE, 
+                    repel = TRUE, colour = "white", fontface = "bold", show.legend = FALSE) +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major = element_blank(),
+          panel.background = element_blank(),
+          plot.background = element_rect(fill = "white"),
+          panel.border = element_blank(),
+          axis.line = element_blank(),
+          axis.text.x = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          plot.title = element_text(size = 18))
+  
+  print(plot)
+}
+
+plot_rf_tree(rf.res, 1000)
+```
+
+
+#### Boosting
+```{r boosting}
+
+library(gbm)
+library(ada)
+if (!file.exists("data_models/boost.RDS")) {
+  boost.res <- gbm(
+  formula = as.numeric(churn) ~ .,
+  distribution = "bernoulli",
+  data = df_train,
+  n.trees = 100,
+  interaction.depth = 15,
+  shrinkage = 0.001,
+  bag.fraction = 0.6,
+  train.fraction = 1.0,
+  n.cores = NULL # will use all cores by default
+  ) 
+  
+  lambda.explore = c(0.01,0.05,0.1,0.2,0.3,0.4)
+  ntrees.explore = c(100,500,1000,5000)
+  d.explore = 2:10
+  parameters = expand.grid(lambda.explore,ntrees.explore,d.explore)
+  mce = numeric(dim(parameters)[1])
+  length(mce)
+  # CV will be complicated in this case. Let's try splitting the training set in 
+  # two subsets instead
+  n.train = dim(df_train)[1]
+  set.seed(1)
+  subtrain.index = sample(1:n.train,round(n.train/3*2))
+  
+  
+  for(i in 1:dim(parameters)[1]){
+    boost.i <- gbm(as.numeric(churn)-1 ~ ., data = df_train[subtrain.index,], distribution = "bernoulli", n.trees = parameters[i,2], interaction.depth = parameters[i,3], shrinkage=parameters[i,1])
+    prob.i = predict(boost.i, newdata = df_train[-subtrain.index,],type = "response", n.trees = parameters[i,3])
+    pred.i = factor(ifelse(is.na(prob.i), 1, ifelse(prob.i > 0.5, 1, 0)),  levels = c(0, 1))
+    mce[i] = mean(pred.i != df_train[-subtrain.index,]$churn) 
+    cat(i," ")
+  }
+  
+  opt.par = parameters[which.min(mce),]
+  opt.par
+  set.seed(1)
+  boost.res <- gbm(as.integer(churn)-1 ~ ., data = df_train, distribution = "bernoulli", n.trees = opt.par[2], interaction.depth = opt.par[3],shrinkage=opt.par[1])
+  summary(boost.hitters)
+
+  
+  saveRDS(mce, "data_models/cv_boost.RDS")
+  saveRDS(boost.res, "data_models/boost.RDS")
+f}else {
+  boost.res <- readRDS("data_models/boost.RDS")
+  mce <- readRDS("data_models/cv_boost.RDS")
+}
+
+
+lambda.explore = c(0.01,0.05,0.1,0.2,0.3,0.4)
+ntrees.explore = c(100,500,1000,5000)
+d.explore = 2:10
+parameters = expand.grid(lambda.explore,ntrees.explore,d.explore)
+plot(parameters[,1],mce,xlab='Shrinkage',col=factor(parameters[,1]),pch=16)
+plot(parameters[,2],mce,xlab='Number of trees',col=factor(parameters[,1]),pch=16)
+plot(parameters[,3],mce,xlab='Depth',col=factor(parameters[,1]),pch=16)
+
+# let's see how our parameter of choose for the shrinking relates to the others
+
+sel.02 = which(parameters[,1]==0.4)
+plot(parameters[sel.02,3],mce[sel.02],xlab='Depth',col=factor(parameters[sel.02,2]),pch=16)
+legend('top',levels(factor(parameters[sel.02,2])),col=1:4,pch=16,horiz = TRUE)
+
+# we used 0.4	100	10
+final_s = which(parameters[,1]==0.4 & parameters[,2]==100 & parameters[,3]==10)
+
+
+summary(boost.res)
+# The summary() function gives us the relative influence of each variable.
+# We can read the relative influence as the percentage of times a variable is selected for splitting, 
+# weighted by the squared improvement to the model as a result of each split, and averaged over all trees.
+# The model has interacions so reading them separately is not very informative
+# Based on the relative influence obtained above, we can plot the marginal effects of the most influential variables using partial dependence plots.
+
+layout(cbind(1,2))
+plot(boost.res, i = "cons_12m")
+plot(boost.res, i = "margin_gross_pow_ele")
+
+# Predict on test data
+prob <- predict.gbm(boost.res, newdata = df_test, n.trees = 100 ,type = "response")
+predicted <- as.factor(ifelse(prob >0.5, 1, 0))
+# Create confusion matrix
+confusion_matrix_boost <- confusionMatrix(predicted, as.factor(df_test$churn))
+print(confusion_matrix_boost)
+
+```
+
+#### XGBoost
+
+```{r xgboost}
+library(xgboost)
+library(DiagrammeR)
+
+xgboost_train = xgb.DMatrix(data=as.matrix(df_train_wo_y_num), label=as.integer(df_train_num$churn)-1)
+xgboost_test = xgb.DMatrix(data=as.matrix(df_test_wo_y_num), label=as.numeric(df_test_num$churn)-1)
+if (!file.exists("data_models/xgboost.RDS")) {
+  xgb.res <- xgboost(data = xgboost_train,
+                      max.depth=3,
+                      nrounds = 1000,
+                      objective = "binary:logistic")
+  saveRDS(xgb.res, "data_models/xgboost.RDS")
+}else {
+  xgb.res <- readRDS("data_models/xgboost.RDS")
+}
+
+
+#use model to make predictions on test data
+prob = predict(xgb.res, newdata=xgboost_test, type="response")
+predicted <- as.factor(ifelse(prob >0.5, 1, 0))
+
+confusion_matrix_xgboost = confusionMatrix(as.factor(df_test_num$churn), predicted)
+print(confusion_matrix_xgboost)
+
+xgb.plot.tree(model = xgb.res, trees = 999, show_node_id = TRUE)
+xgb_plot <- xgb.plot.tree(model = xgb.res, trees = 999, show_node_id = TRUE, render=FALSE)
+xgb_plot
+export_graph(xgb_plot, "xgboost_tree_plot.pdf", width = 1000, height = 1000)
+confusion_matrix_rf
+```
+
