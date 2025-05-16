@@ -1,4 +1,4 @@
-**PowerCO: factors influencing cunstomer churn using machine learning**
+**PowerCO: factors influencing customer churn using machine learning**
 
 This project addresses a real-world challenge faced by Powerco, New Zealand’s leading dual-energy distributor. The company seeks to better understand the factors contributing to customer churn, with a particular emphasis on how pricing dynamics influence customer behavior. The insights gained aim to inform strategies for customer retention and optimized pricing.
 
